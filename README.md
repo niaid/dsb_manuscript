@@ -8,16 +8,15 @@ single cell profiling
 
 Mulè MP\* , Martins AJ\* , Tsang JS. [**Normalizing and denoising
 protein expression data from droplet based single cell
-profiling**](https://www.biorxiv.org/content/10.1101/2020.02.24.963603v1).
-bioRxiv. 2020;2020.02.24.963603.
+profiling**](https://www.biorxiv.org/content/10.1101/2020.02.24.963603v3).
 
 This analysis pipeline reproduces all results and figures reported in
-the paper above. This paper describes control experiments and
-statistical modeling used to characterize sources of noise protein
-expression data from droplet based single cell experiments (CITE-seq,
-REAP-seq, Mission Bio Tapestri etc.) and introduces the dsb R package
-for normalizing and denoising droplet-based surface protein data.  
-The dsb method was developed in [**John Tsang’s
+the paper above describing control experiments and statistical modeling
+used to characterize sources of noise protein expression data from
+droplet based single cell experiments (CITE-seq, ASAP-seq, TEA-seq,
+REAP-seq, Mission Bio Tapestri etc.). Based on these analysis we
+introduced the dsb R package for normalizing and denoising droplet-based
+surface protein data. The dsb method was developed in [**John Tsang’s
 Lab**](https://www.niaid.nih.gov/research/john-tsang-phd) by Matt Mulè,
 Andrew Martins and John Tsang.
 
@@ -25,71 +24,79 @@ The R package dsb is hosted on CRAN
 [**link to latest dsb release on
 CRAN**](https://cran.r-project.org/web/packages/dsb/index.html)  
 [**link to dsb Github repository**](https://github.com/niaid/dsb)  
-**All data used below is available in analysis ready format at this
-figshare repository:** **<https://doi.org/10.35092/yhjc.13370915>**
+**Data used below is available in analysis ready format at this figshare
+repository:** **<https://doi.org/10.35092/yhjc.13370915>**
 
-### Instructions for analysis workflow.
+## Table of Contents
 
-This reproducible analysis workflow was run on a laptop with 16GB RAM.
-To run the analysis, 1) download the dsb\_manuscript github repository,
-2) download data from the figshare link above and add the `/data` folder
-directly to the root directory containing the .Rproj file; this
+1.  [Instructions for analysis workflow](#instructions)
+2.  [install packages used in analysis](#software)
+3.  [Download starting data and add to data directory](#data)
+4.  [dsb normalization on PBMC data from 20 donors](#dsb_1)
+5.  [CLR normalization (across cells) on PBMC data from 20 donors
+    **R4.0.5**](#clr_cells)
+6.  [UMAP based on dsb normalized values](#umap)
+7.  [dsb vs CLR nk cluster comparison, manual gating, stained vs
+    unstained distribution normalization comparison](#pbmc_analysis)
+8.  [dsb technical component robusness assessments, background noise
+    comparison and robustness check](#robustness)
+9.  [Multi vs single batch normalization, µ1 background resampling
+    robustness check](#multibatch)
+10. [External 10X genomics data analysis: “NextGem”, “V3”, and “5 Prime”
+    assays](#tenx)
+11. [dsb normalize protein data from Mission Bio tapestri
+    platform](#missionbio)
+12. [dsb normalization of TEA-seq data and dsb-based WNN multimodal
+    clustering **R4.0.5**](#teaseq)
+13. [dsb normalization of ASAP-seq data and dsb-based WNN multimodal
+    clustering **R4.0.5**](#asapseq)
+14. [dsb vs CLR (acorss cells) Normalization comparison: Differential
+    expression, Variance Paratition, Gap Statistic **R4.0.5**](#compare)
+15. [dsb vs CLR normalized values as input to WNN multimodal clustering:
+    PBMC data from 20 donors **R4.0.5**](#wnn)
+16. [dataset summary statistic table](#summarytable)
+
+### Instructions for analysis workflow. <a name="instructions"></a>
+
+All analysis included in this manuscript was run on a laptop with 16GB
+RAM. To run the analysis, 1) download the dsb\_manuscript github
+repository  
+2\) download data from the figshare link above and add the `/data`
+folder directly to the root directory containing the .Rproj file; this
 directory should now contain dsb\_manuscript.Rproj, the files readme.md
 and readme.rmd, the directory `V2` and the directory you just added,
-`data`. One can view the commented code and run each script in each
-subdirectory as listed below, or source each R script in the order they
-appear below. No file paths need to be specified or changed. Each R
-script is self-contained, reading data from the /data folder and writing
-to figures or results files within each analysis subdirectory relative
-to the root directory through use of the the R package `here`.
+`data`.
 
-### software package versions used in this analysis
+One can view the commented code and run each script in each subdirectory
+as listed below, or source each R script in the order they appear below.
+No file paths need to be specified or changed. Each R script is
+self-contained, reading data from the /data folder and writing to
+figures or results files within each analysis subdirectory relative to
+the root directory using the R package `here`.
 
-Please see full session info at the end of this script
+Note:  
+There are 2 R versions used throughout analysis, R 3.5.3 and R 4.0.5;
+analysis using R 4.0.5 are indicated in the table of contents above.
+Switching R versions can be done on most HPC systems through separately
+installed modules, the [R Switch tool](https://rud.is/rswitch/guide/)
+was used throughout analysis to facilitate version switching.
 
-R version 3.5.3 dsb\_0.1.0 mclust\_5.4.5  
-reticulate\_1.12  
-umap\_0.2.3.1 (uses Python 3.7.3 called via reticulate)  
-magrittr\_1.5  
-forcats\_0.4.0  
-stringr\_1.4.0  
-dplyr\_0.8.5  
-purrr\_0.3.3  
-readr\_1.3.1  
-tidyr\_1.0.2  
-tibble\_2.1.1  
-tidyverse\_1.2.1  
-Seurat\_2.3.4  
-Matrix\_1.2-15  
-cowplot\_0.9.4  
-ggplot2\_3.1.1  
-here\_0.1
-
-R packages used in this this analysis
+### install packages used in analysis <a name="software"></a>
 
 ``` r
-# for constant directory structure 
-library(here)
+# 
+pkgs3.5 = list('tidyverse', 'magrittr', 'mclust', 'Seurat', 
+               'ggrepel', 'ggridges', 'pals', 'reticulate', 'umap')
 
-# the dsb R package 
-library(dsb)
+lapply(pkgs3.5, function(x){ 
+  tryCatch(library(x), 
+         error = function(e){
+           install.packages(pkgs =  x, repos = 'http://cran.us.r-project.org')
+           library(x)
+         })
+  })
 
-# modeling  / analysis / helper functions  
-library(tidyverse)
-library(magrittr)
-library(mclust)
-# Seurat 2.3.4 and its older syntax is used throughout. to download: 
-# install.packages('Seurat', repo = c('satijalab.org/ran/',getOption("repos")))
-library(Seurat)
-
-
-
-# visualization
-library(ggrepel)
-library(ggridges)
-library(pals)
-
-# For umap only, must have python virtual env for this particular pipeline
+# Note, for the R 3.5 analysis for umap must have python virtual env for this particular pipeline
 # python must be installed for example: 
 virtualenv_create("r-reticulate")
 virtualenv_install("r-reticulate", "umap-learn")
@@ -97,9 +104,29 @@ use_virtualenv("r-reticulate")
 library(umap)
 library(reticulate)
 library(umap)
+# (Umap can now be called directly from most single cell analysis software). 
 ```
 
-### 3\) Add downloaded data to the repository
+R packages used in this this analysis: R 4.0.5  
+The same packages are required as above (separately installed for R
+4.0.5) in addition, the following packages in the R4 envionmnent are
+required:
+
+``` r
+# switch to R 4.0.5, i.e. using R switch https://rud.is/rswitch/guide/
+pkgs4.0 = c(pkgs3.5, 'data.table', 'factoextra', 'GEOquery')
+BiocManager::install("variancePartition")
+devtools::install_github("caleblareau/BuenColors")
+lapply(pkgs4.0, function(x){ 
+  tryCatch(library(x), 
+         error = function(e){
+           install.packages(pkgs =  x, repos = 'http://cran.us.r-project.org')
+           library(x)
+         })
+  })
+```
+
+### 3\) Download starting data and add to data directory <a name="data"></a>
 
 After downloading the repository located at
 <https://github.com/niaid/dsb_manuscript>, add the data folder to the
@@ -135,32 +162,50 @@ stopifnot(data_ %in% list.files(here("data/mission_bio_data/")))
 data_ = c("10x_pbmc5k_V3.rds", "10x_pbmc5k_NextGem.rds",
           "10x_pbmc10k_V3.rds", "10x_pbmc_5prime_5k.rds")
 stopifnot(data_ %in% list.files(here("data/10x_rds/")))
+tenx_filtered_matrices = c('5prime_5k','v3_10k','v3_5k','nextgem_5k')
+# filtereed matrices 
+tenx_filtered_dir = list.dirs(path = here('data/10x_rds/'), full.names = FALSE)
+stopifnot(tenx_filtered_matrice %in% tenx_filtered_dir)
 ```
 
-### 4\) Reproduce analysis results:
+## Analysis
 
 These can be run line by line in an active R session or by sourcing the
-script. As described above, file paths do not need to be changed.
+script. As described above, file paths do not need to be
+changed.
 
-### dsb normalize PBMC data from 20 individuals.
+### Run dsb normalization on PBMC data from 20 individuals. <a name="dsb_1"></a>
 
 V2/dsb\_normalize\_cluster\_pipeline/
 
 ``` r
+# R 3.5.1 
 source(here("V2/dsb_normalize_cluster_pipeline/1_dsb_normalize.r"))
 ```
 
-### run umap
+### Run CLR normalization (across cells) on PBMC data from 20 individuals. <a name="clr_cells"></a>
+
+Here switch to R 4.0.5, CLR transform across cells
+
+``` r
+# R 4.0.5 
+source(here("V2/dsb_normalize_cluster_pipeline/1.1_calc_clr_across_cells_s4.r"))
+```
+
+**The rest of this section uses R 3.5.1**
+
+### UMAP based on dsb normalized values <a name="umap"></a>
 
 reads data
 from:  
 V2/dsb\_normalize\_cluster\_pipeline/generated\_data/h1\_d0\_singlets\_ann\_Seurat2.4\_dsbnorm.rds
 
 ``` r
+# switch back to R 3.5
 source(here("V2/dsb_normalize_cluster_pipeline/2_run_umap.r"))
 ```
 
-### Figure generation and modeling results.
+### dsb vs CLR nk cluster comparison, manual gating, stained vs unstained distribution normalization comparison. <a name="pbmc_analysis"></a>
 
 These scripts compare different normalizations with dsb and produce
 various comparison analysis and visualization between methods.
@@ -169,9 +214,11 @@ various comparison analysis and visualization between methods.
 source(here("V2/dsb_normalize_cluster_pipeline/3_figure_generation.r"))
 source(here("V2/dsb_normalize_cluster_pipeline/4_manual_gate_plots.r"))
 source(here("V2/dsb_normalize_cluster_pipeline/5_stained_unstained_dsb_distributions.r"))
+# an alternate scheme for normalizing stained and unstained cells with highly concordant results (for reference)
+source(here("V2/dsb_normalize_cluster_pipeline/5a_alternate_noise_unstained_plots.r"))
 ```
 
-### noise variable measurements and analysis of dsb underlying modeling assumptions
+### dsb technical component robusness assessments, background noise comparison and robustness check <a name="robustness"></a>
 
 This section illustrates the dsb process in steps and models each step
 underlying the method. 6 and 6a analyze the correlation structure of
@@ -190,7 +237,7 @@ source(here("V2/dsb_process_plots/7_neg_control_plots.R"))
 source(here("V2/dsb_process_plots/8_mixture_fits.r"))
 ```
 
-### Multi vs single batch normalization and background drop sensitivity analysis
+### Multi vs single batch normalization, µ1 background resampling robustness check <a name="multibatch"></a>
 
 empty\_drop\_threshold\_batch is an assessment of single vs multi batch
 normalization and sensitivity of each normalization scheme to defining
@@ -204,7 +251,7 @@ source(here("V2/parameter_sensitivity/empty_drop_threshold_batch.r"))
 source(here("V2/parameter_sensitivity/mu1_noise_correlations.r"))
 ```
 
-### External 10X genomics data analysis: “NextGem”, “V3”, and “5 Prime” assays
+### External 10X genomics data analysis: “NextGem”, “V3”, and “5 Prime” assays <a name="tenx"></a>
 
 These scripts are identical for each data set with tuned parameters at
 the beginning of each script. Read Cell Ranger raw output, select
@@ -228,7 +275,7 @@ source(here("V2/10x_analysis/10x_pbmc_5prime_5k.r"))
 source(here("V2/10x_analysis/10x_pbmc_5prime_5k_figure_generation.r"))
 ```
 
-### dsb normalize protein data from Mission Bio tapestri platform
+### dsb normalize protein data from Mission Bio tapestri platform <a name="missionbio"></a>
 
 The data downloaded from MissionBio are reformatted for dsb and
 normalized using dsb step I - ambient correction using empty droplets.
@@ -236,6 +283,80 @@ normalized using dsb step I - ambient correction using empty droplets.
 ``` r
 # tapestri example data dsb normalization 
 source(here("V2/missionbio_tapestri/tapestri_exampledata_analysis.r"))
+```
+
+### dsb normalization of TEA-seq data and dsb-based WNN multimodal clustering <a name="teaseq"></a>
+
+##### this analysis uses R version 4.0.5 with Seurat version 4.0.1
+
+TEA-seq data were downloaded from
+<https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM5123951>. The
+files:  
+X066-MP0C1W3\_leukopak\_perm-cells\_tea\_200M\_cellranger-arc\_per\_barcode\_metrics.csv  
+X066-MP0C1W3\_leukopak\_perm-cells\_tea\_200M\_adt\_counts.csv  
+GSM5123951\_X066-MP0C1W3\_leukopak\_perm-cells\_tea\_200M\_cellranger-arc\_filtered\_feature\_bc\_matrix.h5  
+downloaded from GEO into directory data/revision\_data/tea\_seq/  
+Barcodes are filtered to cells and empty drops based on the provded
+metadata is\_cell parameters.
+
+``` r
+# run custom mapping script provided by Lucas Graybuck
+source(here('V2/teaseq/1_teaseq_preprocess_barcodes.r'))
+
+# run customized joint protein RNA clustering based on Seurat 4 WNN with CLR and dsb for protein norm.   
+source(here("V2/teaseq/SR4_teaseq_pipeline_V2.r"))
+
+# figure generation
+source(here("V2/teaseq/teaseq_figgen_V2.R"))
+
+# dsb modeling assumptions 
+source(here('V2/teaseq/teaseq_dsb_model.r'))
+```
+
+### dsb normalization of ASAP-seq data and dsb-based WNN multimodal clustering <a name="asapseq"></a>
+
+##### this analysis uses R version 4.0.5 and Seurat version 4.0.1
+
+ASAP-seq data was downloaded from
+<https://github.com/caleblareau/asap_reproducibility/tree/master/bonemarow_asapseq/data>  
+See: <https://www.nature.com/articles/s41587-021-00927-2>
+
+``` r
+# run dsb on ASAP-seq data 
+source(here('V2/asapseq/asapseq_bm.R'))
+# Figure generation 
+source(here('V2/asapseq/asapseq_bm_figure_generation.r'))
+```
+
+### dsb vs CLR (acorss cells) Normalization comparison: Differential expression, Variance Paratition, Gap Statistic <a name="compare"></a>
+
+Comparison of dsb with the updated implementation of CLR normalization
+(across cells).
+
+``` r
+# Gap statistic for cluster quality 
+source(here('V2/si/gap.r'))
+
+# Variance partition analysis 
+source(here('V2/si/vpart.r'))
+
+# differential expression of cluster protein markers 
+source(here('V2/si/de.r'))
+```
+
+### dsb vs CLR normalized values as input to WNN multimodal clustering: PBMC data from 20 donors <a name="wnn"></a>
+
+``` r
+# wnn analysis of CITE-seq data normalized wit h CLR vs dsb 
+source(here('V2/joint_clustering/SR4_seurat_wnn_dsb.R'))
+source(here('V2/joint_clustering/SR4_seurat_wnn_dsb_figgen.r'))
+```
+
+### dataset summary statistic table <a name="summarytable"></a>
+
+``` r
+# create summary statistics table for analyzed datasets. 
+source(here('V2/table/make_table.r'))
 ```
 
 ### public dataset sources
@@ -389,30 +510,23 @@ withr\_2.1.2 diptest\_0.75-7 parallel\_3.5.3 doSNOW\_1.0.16 hms\_0.4.2
 grid\_3.5.3 rpart\_4.1-13 class\_7.3-15 rmarkdown\_1.13
 segmented\_0.5-4.0 Rtsne\_0.15 lubridate\_1.7.4 base64enc\_0.1-3
 
-### repository release notes
+### NIAID repository release notes
 
 A review of this code has been conducted, no critical errors exist, and
 to the best of the authors knowledge, there are no problematic file
 paths, no local system configuration details, and no passwords or keys
-included in this code. For questions about the dsb software package,
-please open an issue at the [dsb github
-repository](https://github.com/niaid/dsb).
-
+included in this code.  
 Primary author(s): Matt Mulè  
 Organizational contact information: General: john.tsang AT nih.gov,
-code: mulemp AT nih.gov \[permanent address mattmule AT gmail\] Date of
-release: Oct 7 2020  
-Version: NA  
-License details: NA  
+code: mulemp AT nih.gov \[permanent address mattmule AT gmail\]  
+Date of release: Oct 7 2020  
 Description: code to reproduce analysis of manuscript  
-Usage instructions: Provided in this markdown  
-Example(s) of usage: NA  
-Proper attribution to others, when applicable: NA
+Usage instructions: Provided in this markdown
 
 ### code check
 
-Checked repository for PII and searched for any strings containing file
-path. Data used in this analysis does not contain PII.
+Checked repository for PII and strings containing file paths. Data used
+in this analysis does not contain PII.
 
 ``` r
 library(lintr)
