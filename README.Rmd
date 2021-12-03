@@ -12,14 +12,15 @@ knitr::opts_chunk$set(
 )
 ```
 
-### Analysis code to reproduce manuscript results  
+### Code to reproduce all manuscript results and figures
 Mulè MP* , Martins AJ* , Tsang JS. [**Normalizing and denoising protein expression data from droplet based single cell profiling**](https://www.biorxiv.org/content/10.1101/2020.02.24.963603v3).
 
 This analysis pipeline reproduces all results and figures reported in the paper above describing control experiments and statistical modeling used to characterize sources of noise protein expression data from droplet based single cell experiments (CITE-seq, ASAP-seq, TEA-seq, REAP-seq, Mission Bio Tapestri etc.). Based on these analysis we introduced the dsb R package for normalizing and denoising droplet-based surface protein data. 
-The dsb method was developed in [**John Tsang’s Lab**](https://www.niaid.nih.gov/research/john-tsang-phd) by Matt Mulè, Andrew Martins and John Tsang.  
+The dsb method was developed in [**John Tsang’s Lab**](https://www.niaid.nih.gov/research/john-tsang-phd) by Matt Mulè, Andrew Martins and John Tsang.
+
 
 The R package dsb is hosted on CRAN  
-[**link to latest dsb release on CRAN**](https://cran.r-project.org/web/packages/dsb/index.html)    
+[**link to latest dsb release on CRAN**](https://cran.r-project.org/package=dsb)    
 [**link to dsb Github repository**](https://github.com/niaid/dsb)  
 **Data used below is available in analysis ready format at this figshare repository:** **https://doi.org/10.35092/yhjc.13370915**  
 
@@ -30,16 +31,17 @@ The R package dsb is hosted on CRAN
 5.  [dsb normalization on PBMC data from 20 donors](#dsb_1) 
 6.  [CLR normalization (across cells) on PBMC data from 20 donors **R4.0.5**](#clr_cells) 
 7.  [UMAP based on dsb normalized values](#umap) 
-8.  [dsb vs CLR nk cluster comparison, manual gating, stained vs unstained distribution normalization comparison](#pbmc_analysis) 
-9.  [dsb technical component robusness assessments, background noise comparison and robustness check](#robustness) 
-10. [Multi vs single batch normalization, µ1 background resampling robustness check](#multibatch) 
-11. [External 10X genomics data analysis: "NextGem", "V3", and "5 Prime" assays](#tenx) 
-12. [dsb normalize protein data from Mission Bio tapestri platform](#missionbio) 
-13. [dsb normalization of TEA-seq data and dsb-based WNN multimodal clustering **R4.0.5**](#teaseq) 
-14. [dsb normalization of ASAP-seq data and dsb-based WNN multimodal clustering **R4.0.5**](#asapseq) 
-15. [dsb vs CLR (acorss cells) Normalization comparison: Differential expression, Variance Paratition, Gap Statistic **R4.0.5**](#compare) 
-16. [dsb vs CLR normalized values as input to WNN multimodal clustering: PBMC data from 20 donors **R4.0.5**](#wnn) 
-17. [dataset summary statistic table](#summarytable) 
+8.  [dsb vs CLR nk cluster comparison, manual gating, normalization distribution comparison](#pbmc_analysis) 
+9.  [dsb technical component (dsb step II) robusness assessments](#robustness) 
+10. [dsb ambient correction (dsb step I) with different definitions of empty droplets robusness assessments](#robustness2) 
+11. [Multi vs single batch normalization, µ1 background resampling robustness check](#multibatch) 
+12. [External 10X genomics data analysis: "NextGem", "V3", and "5 Prime" assays](#tenx) 
+13. [dsb normalize protein data from Mission Bio tapestri platform](#missionbio) 
+14. [dsb normalization of TEA-seq data and dsb-based WNN multimodal clustering **R4.0.5**](#teaseq) 
+15. [dsb normalization of ASAP-seq data and dsb-based WNN multimodal clustering **R4.0.5**](#asapseq) 
+16. [dsb vs CLR (acorss cells) Normalization comparison: Differential expression, Gap Statistic **R4.0.5**](#compare) 
+17. [dsb vs CLR normalized values as input to WNN multimodal clustering: PBMC data from 20 donors **R4.0.5**](#wnn) 
+18. [dataset summary statistic table](#summarytable) 
 
 ### Instructions for analysis workflow.  <a name="instructions"></a>
 All analysis included in this manuscript was run on a laptop with 16GB RAM. To run the analysis, 
@@ -49,7 +51,7 @@ All analysis included in this manuscript was run on a laptop with 16GB RAM. To r
 One can view the commented code and run each script in each subdirectory as listed below, or source each R script in the order they appear below. No file paths need to be specified or changed. Each R script is self-contained, reading data from the /data folder and writing to figures or results files within each analysis subdirectory relative to the root directory using the R package `here`.  
 
 Note:  
-There are 2 R versions used throughout analysis, R 3.5.3 and R 4.0.5; analysis using R 4.0.5 are indicated in the table of contents above. Switching R versions can be done on most HPC systems through separately installed modules, the [R Switch tool](https://rud.is/rswitch/guide/) was used throughout analysis to facilitate version switching. 
+There are 2 R versions used throughout analysis, R 3.5.3 and R 4.0.5; analysis using R 4.0.5 are indicated in the table of contents above. Switching R versions can be done on most HPC systems through separately installed modules. If analyzing data locally, the [R Switch tool](https://rud.is/rswitch/guide/) can be used to facilitate R version switching. 
 
 ### install packages used in analysis <a name="software"></a>
 
@@ -78,7 +80,7 @@ library(umap)
 ```
 
 R packages used in this this analysis: R 4.0.5  
-The same packages are required as above (separately installed for R 4.0.5) in addition, the following packages in the R4 envionmnent are required:  
+The same packages are required as above (separately installed for R 4.0.5) in addition, the following packages in the R4 environment are required:  
 ```{r, eval=FALSE}
 # switch to R 4.0.5, i.e. using R switch https://rud.is/rswitch/guide/
 pkgs4.0 = c(pkgs3.5, 'data.table', 'factoextra', 'GEOquery')
@@ -95,7 +97,84 @@ lapply(pkgs4.0, function(x){
 ```
 
 ### 3) Download starting data and add to data directory <a name="data"></a>
-After downloading the repository located at https://github.com/niaid/dsb_manuscript, add the data folder to the repository at the top level (where the file .rproj is located). Prior to running any analysis confirm the data are in the correct repository with the scripts below.
+After downloading the repository located at https://github.com/niaid/dsb_manuscript, add the data folder to the repository at the top level (where the file .rproj is located). The structure of the starting data is shown in the tree diagram below. The R code below checks for files. 
+
+  |-dsb_normalization.Rproj  
+  |-data  
+  |  |-mission_bio_data  
+  |  |  |-readme.txt  
+  |  |  |-AML-4-cell-line-multiomics-adt-counts.tsv  
+  |  |-revision_data  
+  |  |  |-tea_seq  
+  |  |  |  |-well6  
+  |  |  |  |  |-X066-MP0C1W6_leukopak_perm-cells_tea_200M_adt_counts.csv  
+  |  |  |  |  |-X066-MP0C1W6_leukopak_perm-cells_tea_200M_cellranger-arc_per_barcode_metrics.csv  
+  |  |  |  |  |-GSM5123954_X066-MP0C1W6_leukopak_perm-cells_tea_200M_cellranger-arc_filtered_feature_bc_matrix.h5  
+  |  |  |  |-well5  
+  |  |  |  |  |-X066-MP0C1W5_leukopak_perm-cells_tea_200M_adt_counts.csv  
+  |  |  |  |  |-GSM5123953_X066-MP0C1W5_leukopak_perm-cells_tea_200M_cellranger-arc_filtered_feature_bc_matrix.h5  
+  |  |  |  |  |-X066-MP0C1W5_leukopak_perm-cells_tea_200M_cellranger-arc_per_barcode_metrics.csv  
+  |  |  |  |-well4  
+  |  |  |  |  |-X066-MP0C1W4_leukopak_perm-cells_tea_200M_cellranger-arc_per_barcode_metrics.csv  
+  |  |  |  |  |-GSM5123952_X066-MP0C1W4_leukopak_perm-cells_tea_200M_cellranger-arc_filtered_feature_bc_matrix.h5  
+  |  |  |  |  |-X066-MP0C1W4_leukopak_perm-cells_tea_200M_adt_counts.csv  
+  |  |  |  |-well3  
+  |  |  |  |  |-X066-MP0C1W3_leukopak_perm-cells_tea_200M_adt_counts.csv  
+  |  |  |  |  |-X066-MP0C1W3_leukopak_perm-cells_tea_200M_cellranger-arc_per_barcode_metrics.csv  
+  |  |  |  |  |-GSM5123951_X066-MP0C1W3_leukopak_perm-cells_tea_200M_cellranger-arc_filtered_feature_bc_matrix.h5  
+  |  |  |-asapseq  
+  |  |  |  |-adt  
+  |  |  |  |  |-featurecounts.mtx  
+  |  |  |  |  |-featurecounts.genes.txt  
+  |  |  |  |  |-featurecounts.barcodes.txt  
+  |  |  |  |-barcodes  
+  |  |  |  |  |-step3_ADThq.tsv  
+  |  |-10x_rds  
+  |  |  |-5prime_5k  
+  |  |  |  |-filtered_feature_bc_matrix  
+  |  |  |  |  |-features.tsv.gz  
+  |  |  |  |  |-barcodes.tsv.gz  
+  |  |  |  |  |-matrix.mtx.gz  
+  |  |  |  |-vdj_v1_hs_pbmc2_5gex_protein_filtered_feature_bc_matrix.tar  
+  |  |  |-10x_pbmc5k_V3.rds  
+  |  |  |-10x_pbmc10k_V3.rds  
+  |  |  |-pbmc_10k_protein_v3 — Cell Ranger.htm  
+  |  |  |-v3_10k  
+  |  |  |  |-filtered_feature_bc_matrix  
+  |  |  |  |  |-features.tsv.gz  
+  |  |  |  |  |-barcodes.tsv.gz  
+  |  |  |  |  |-matrix.mtx.gz  
+  |  |  |  |-pbmc_10k_protein_v3_filtered_feature_bc_matrix.tar  
+  |  |  |-nextgem_5k  
+  |  |  |  |-filtered_feature_bc_matrix  
+  |  |  |  |  |-features.tsv.gz  
+  |  |  |  |  |-barcodes.tsv.gz  
+  |  |  |  |  |-matrix.mtx.gz  
+  |  |  |  |-raw_feature_bc_matrix  
+  |  |  |  |  |-features.tsv.gz  
+  |  |  |  |  |-barcodes.tsv.gz  
+  |  |  |  |  |-matrix.mtx.gz  
+  |  |  |  |-5k_pbmc_protein_v3_nextgem_filtered_feature_bc_matrix.tar  
+  |  |  |-10x_pbmc_5prime_5k.rds  
+  |  |  |-v3_5k  
+  |  |  |  |-5k_pbmc_protein_v3_filtered_feature_bc_matrix.tar  
+  |  |  |  |-filtered_feature_bc_matrix  
+  |  |  |  |  |-features.tsv.gz  
+  |  |  |  |  |-barcodes.tsv.gz  
+  |  |  |  |  |-matrix.mtx.gz  
+  |  |  |-10x_pbmc5k_NextGem.rds    
+  |  |-V2_data  
+  |  |  |-background_data  
+  |  |  |  |-adt_neg_full_list.rds  
+  |  |  |  |-adt_neg_dmx.rds  
+  |  |  |  |-adt_neg_dmx_list.rds  
+  |  |  |  |-adt_neg_full_qc.rds  
+  |  |  |-CITEseq_raw_PMID32094927_seurat2.4.rds  
+  |  |  |-unstained_control_singlets.rds  
+
+
+
+Prior to running any analysis confirm the data are in the correct repository relative to the project root directory with the scripts below.
 
 ```{r, eval = FALSE}
 # confirm  *data/V2_Data/* and *data/background_data/*
@@ -128,7 +207,22 @@ stopifnot(data_ %in% list.files(here("data/10x_rds/")))
 tenx_filtered_matrices = c('5prime_5k','v3_10k','v3_5k','nextgem_5k')
 # filtereed matrices 
 tenx_filtered_dir = list.dirs(path = here('data/10x_rds/'), full.names = FALSE)
-stopifnot(tenx_filtered_matrice %in% tenx_filtered_dir)
+stopifnot(tenx_filtered_matrices %in% tenx_filtered_dir)
+
+#asapseq
+asap_ = c('adt', 'barcodes')
+asapseq_ = list.dirs(path = here('data/revision_data/asapseq/'), full.names = FALSE)
+stopifnot(asap_ %in% asapseq_)
+
+# teaseq 
+tea_ = c('well6', 'well5', 'well4', 'well3','maitsig.csv')
+teaseq = list.files(path = here('data/revision_data/tea_seq/'), full.names = FALSE)
+stopifnot(tea_ %in% teaseq)
+
+#asapseq source (https://github.com/caleblareau/asap_reproducibility) 
+asap_ = c('adt', 'barcodes')
+asapseq_ = list.dirs(path = here('data/revision_data/asapseq/'), full.names = FALSE)
+stopifnot(asap_ %in% asapseq_)
 ```
 
 ## Analysis 
@@ -161,27 +255,41 @@ V2/dsb_normalize_cluster_pipeline/generated_data/h1_d0_singlets_ann_Seurat2.4_ds
 source(here("V2/dsb_normalize_cluster_pipeline/2_run_umap.r"))
 ```
 
-### dsb vs CLR nk cluster comparison, manual gating, stained vs unstained distribution normalization comparison. <a name="pbmc_analysis"></a>
-These scripts compare different normalizations with dsb and produce various comparison analysis and visualization between methods. 
+### dsb vs CLR comparison and dsb vs empty drop protein annotation figures and manual gating
+comparison of normalized protein distributions vs values of proteins in empty drops. CLR vs dsb on nk cell cluster and unstained control vs stained cell normalization analysis.  
+<a name="pbmc_analysis"></a>
 ```{r, eval=FALSE}
 source(here("V2/dsb_normalize_cluster_pipeline/3_figure_generation.r"))
 source(here("V2/dsb_normalize_cluster_pipeline/4_manual_gate_plots.r"))
-source(here("V2/dsb_normalize_cluster_pipeline/5_stained_unstained_dsb_distributions.r"))
-# an alternate scheme for normalizing stained and unstained cells with highly concordant results (for reference)
-source(here("V2/dsb_normalize_cluster_pipeline/5a_alternate_noise_unstained_plots.r"))
 ```
 
-### dsb technical component robusness assessments, background noise comparison and robustness check <a name="robustness"></a>
-This section illustrates the dsb process in steps and models each step underlying the method. 6 and 6a analyze the correlation structure of variables comprising the technical component in step II of the dsb method. 7 models the correlation between multiple measurements of experimentally and model derived background noise with 'ground truth' background from unstained control cells spiked into the cell pool prior to droplet generation. In 8, the per-cell two component Gaussian mixture model is compared to k = 1-6 component models and the resulting single cell fits are analyzed. 
+### stained vs unstained distribution normalization comparisons  
+R 4.0.5  
+the versions shown in figure are each batch with a separate dsb normalization applied; results are highly concordant with single or multibatch implementtions of dsb-also see related results in Supplementary Fig 8 which compares batch merge differences unbiasedly across proteins also using multiple definitions of background droplets (in the underlying dsb process analysis in  dsb_process_plots, next section).
+```{r, eval=FALSE}
+# multiple methods for joining batches and normalizing are shown 
+source(here("V2/dsb_normalize_cluster_pipeline/5_norm_distribution_comparison.r"))
+```
+
+### dsb technical component (step II) robusness assessments <a name="robustness"></a>  
+(R 3.5.1)  
+This section illustrates the dsb process in steps and models each step underlying the method. 6 and 6a analyze the correlation structure of variables comprising the per cell technical component that is used in step II of the dsb method. In 8, the per-cell two component Gaussian mixture model is compared to k = 1, 3, 4, 5, and 6 component models across cells and the BICs from the resulting 169,374 models are analyzed. (R 3.5.1)
 ```{r, eval=FALSE}
 source(here("V2/dsb_process_plots/6_mean_isotype_v_mean_control.R"))
 source(here("V2/dsb_process_plots/6a_isotype_figure_generation.r"))
-source(here("V2/dsb_process_plots/7_neg_control_plots.R"))
+# script 8 can be run before script 7 for a more coherent workflow. 
 source(here("V2/dsb_process_plots/8_mixture_fits.r"))
 ```
 
+### dsb ambient correction (dsb step I) with different definitions of empty droplets robusness assessments <a name="robustness2"></a>  
+This section is an assessment of the robustness of the ambient correction step (dsb step I). Correlation between 'ground truth' background from unstained control cells spiked into the cell pool after staining cells but prior to droplet generation is compared to multiple definitions of empty droplets as well as model-derived background from a per protein mixture model. 
+```{r, eval=FALSE}
+source(here("V2/dsb_process_plots/7_neg_control_plots.R"))
+```
+
+
 ### Multi vs single batch normalization, µ1 background resampling robustness check <a name="multibatch"></a>
-empty_drop_threshold_batch is an assessment of single vs multi batch normalization and sensitivity of each normalization scheme to defining background with hashing or library size distribution. mu1_noise_correlations is analysis of the robustness of µ1 background assessment and correlation with µ2 and isotype control means using 100 random sampling of µ1 proteins from each cell.   
+empty_drop_threshold_batch is an assessment of single vs multi batch normalization and sensitivity of each normalization scheme to defining background with hashing or library size distribution. mu1_noise_correlations is analysis of the robustness of µ1 background assessment and correlation with µ2 and isotype control means using 100 random samples of 4 µ1 proteins (the same number as isotype controls in the experiment) from each cell.   
 
 ```{r, eval=FALSE}
 source(here("V2/parameter_sensitivity/empty_drop_threshold_batch.r"))
@@ -199,12 +307,12 @@ source(here("V2/10x_analysis/10x_pbmc_10k_V3_figure_generation.r"))
 # 5k V3 data 
 source(here("V2/10x_analysis/10x_pbmc_5k_V3.r"))
 source(here("V2/10x_analysis/10x_pbmc_5k_V3_figure_generation.r"))
-# Next Gem data 
-source(here("V2/10x_analysis/10x_pbmc_NextGem.r"))
-source(here("V2/10x_analysis/10x_pbmc_NextGem_figure_generation.r"))
 # 5 prime data 
 source(here("V2/10x_analysis/10x_pbmc_5prime_5k.r"))
 source(here("V2/10x_analysis/10x_pbmc_5prime_5k_figure_generation.r"))
+# Next Gem data 
+source(here("V2/10x_analysis/10x_pbmc_NextGem.r"))
+source(here("V2/10x_analysis/10x_pbmc_NextGem_figure_generation.r"))
 ```
 
 ### dsb normalize protein data from Mission Bio tapestri platform <a name="missionbio"></a>
@@ -215,13 +323,11 @@ source(here("V2/missionbio_tapestri/tapestri_exampledata_analysis.r"))
 ```
 
 ### dsb normalization of TEA-seq data and dsb-based WNN multimodal clustering <a name="teaseq"></a>
-##### this analysis uses R version 4.0.5 with Seurat version 4.0.1
-TEA-seq data were downloaded from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM5123951. The files:  
-X066-MP0C1W3_leukopak_perm-cells_tea_200M_cellranger-arc_per_barcode_metrics.csv  
-X066-MP0C1W3_leukopak_perm-cells_tea_200M_adt_counts.csv  
-GSM5123951_X066-MP0C1W3_leukopak_perm-cells_tea_200M_cellranger-arc_filtered_feature_bc_matrix.h5  
-downloaded from GEO into directory data/revision_data/tea_seq/   
-Barcodes are filtered to cells and empty drops based on the provded metadata is_cell parameters.
+R 4.0.5 
+TEA-seq data were downloaded from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM5123951.  
+
+Preprocessing script formats data object using cells meeting authors internal qc. Weighted Nearest Neighbor joint mRNA and protein clustering is compared using dsb normalized and CLR (across cells) with the normalized ADT data directly as input. Analysis of dsb modeling assumptions. 
+
 
 ```{r, eval = FALSE}
 # run custom mapping script provided by Lucas Graybuck
@@ -231,7 +337,7 @@ source(here('V2/teaseq/1_teaseq_preprocess_barcodes.r'))
 source(here("V2/teaseq/SR4_teaseq_pipeline_V2.r"))
 
 # figure generation
-source(here("V2/teaseq/teaseq_figgen_V2.R"))
+source(here("V2/teaseq/teaseq_figgen_V3.R"))
 
 # dsb modeling assumptions 
 source(here('V2/teaseq/teaseq_dsb_model.r'))
@@ -249,14 +355,11 @@ source(here('V2/asapseq/asapseq_bm.R'))
 source(here('V2/asapseq/asapseq_bm_figure_generation.r'))
 ```
 
-### dsb vs CLR (acorss cells) Normalization comparison: Differential expression, Variance Paratition, Gap Statistic <a name="compare"></a>
+### dsb vs CLR (acorss cells) Normalization comparison: Differential expression, Gap Statistic <a name="compare"></a>
 Comparison of dsb with the updated implementation of CLR normalization (across cells). 
 ```{r, eval=FALSE}
 # Gap statistic for cluster quality 
 source(here('V2/si/gap.r'))
-
-# Variance partition analysis 
-source(here('V2/si/vpart.r'))
 
 # differential expression of cluster protein markers 
 source(here('V2/si/de.r'))
@@ -276,7 +379,7 @@ source(here('V2/table/make_table.r'))
 ```
 
 ### public dataset sources
-Data are available in analysis-ready format at the figshare link above for convenience. For 10X data, downloaded only the the *raw, not the filtered data* in the links below downloaded  **feature / cell matrix (raw)** output. dsb uses the non cell containing empty droplets that are in the raw output to estimate background - see package documentation.  
+Data are available in analysis-ready format at the figshare link above for convenience. For 10X data, downloaded only the *raw, not the filtered data* in the links below downloaded  **feature / cell matrix (raw)** output. dsb uses the non cell containing empty droplets that are in the raw output to estimate background - see package documentation.  
 Next GEM: https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.2/5k_pbmc_protein_v3_nextgem  
 V3 (5K): https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.2/5k_pbmc_protein_v3  
 V3 (10K): https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.0/pbmc_10k_protein_v3  
@@ -361,7 +464,6 @@ saveRDS(h1, file = paste0(datapath, "CITEseq_raw_PMID32094927_seurat2.4.rds"))
 ### Project options and Sessioninfo
 
 R version 3.5.3 
-attached base packages: stats graphics grDevices utils datasets methods base
 
 other attached packages: mclust_5.4.5 reticulate_1.12 umap_0.2.3.1 magrittr_1.5 forcats_0.4.0 stringr_1.4.0 dplyr_0.8.5
 purrr_0.3.3 readr_1.3.1 tidyr_1.0.2 tibble_2.1.1 tidyverse_1.2.1 Seurat_2.3.4 Matrix_1.2-15
@@ -395,11 +497,39 @@ openssl_1.4 rprojroot_1.3-2 withr_2.1.2 diptest_0.75-7 parallel_3.5.3
 doSNOW_1.0.16 hms_0.4.2 grid_3.5.3 rpart_4.1-13 class_7.3-15
 rmarkdown_1.13 segmented_0.5-4.0 Rtsne_0.15 lubridate_1.7.4 base64enc_0.1-3
 
+
+R version 4.0.5 
+
+other attached packages:  
+ [1] mclust_5.4.7        GEOquery_2.58.0     Biobase_2.50.0      BiocGenerics_0.36.1 magrittr_2.0.1      forcats_0.5.1       stringr_1.4.0       dplyr_1.0.4        
+ [9] purrr_0.3.4         readr_1.4.0         tidyr_1.1.2         tibble_3.0.6        ggplot2_3.3.3       tidyverse_1.3.0     dsb_0.1.0           here_1.0.1         
+[17] Matrix_1.3-2        data.table_1.14.0   SeuratObject_4.0.0  Seurat_4.0.1       
+
+loaded via a namespace (and not attached):  
+  [1] Rtsne_0.15            colorspace_2.0-0      deldir_0.2-10         ellipsis_0.3.1        ggridges_0.5.3        rprojroot_2.0.2       fs_1.5.0             
+  [8] rstudioapi_0.13       spatstat.data_2.1-0   farver_2.0.3          leiden_0.3.7          listenv_0.8.0         ggrepel_0.9.1         lubridate_1.7.9.2    
+ [15] xml2_1.3.2            codetools_0.2-18      splines_4.0.5         polyclip_1.10-0       jsonlite_1.7.2        broom_0.7.5           ica_1.0-2            
+ [22] cluster_2.1.2         dbplyr_2.1.0          png_0.1-7             pheatmap_1.0.12       uwot_0.1.10           shiny_1.6.0           sctransform_0.3.2    
+ [29] spatstat.sparse_2.0-0 compiler_4.0.5        httr_1.4.2            backports_1.2.1       assertthat_0.2.1      fastmap_1.1.0         lazyeval_0.2.2       
+ [36] cli_2.5.0             limma_3.46.0          later_1.1.0.1         htmltools_0.5.1.1     tools_4.0.5           igraph_1.2.6          gtable_0.3.0         
+ [43] glue_1.4.2            RANN_2.6.1            reshape2_1.4.4        Rcpp_1.0.6            scattermore_0.7       cellranger_1.1.0      vctrs_0.3.6          
+ [50] nlme_3.1-152          lmtest_0.9-38         globals_0.14.0        rvest_0.3.6           mime_0.10             miniUI_0.1.1.1        lifecycle_1.0.0      
+ [57] irlba_2.3.3           goftest_1.2-2         future_1.21.0         MASS_7.3-53.1         zoo_1.8-8             scales_1.1.1          spatstat.core_2.0-0  
+ [64] hms_1.0.0             promises_1.2.0.1      spatstat.utils_2.1-0  RColorBrewer_1.1-2    reticulate_1.18       pbapply_1.4-3         gridExtra_2.3        
+ [71] rpart_4.1-15          stringi_1.5.3         rlang_0.4.10          pkgconfig_2.0.3       matrixStats_0.58.0    lattice_0.20-41       ROCR_1.0-11          
+ [78] tensor_1.5            labeling_0.4.2        patchwork_1.1.1       htmlwidgets_1.5.3     cowplot_1.1.1         tidyselect_1.1.0      ggsci_2.9            
+ [85] parallelly_1.23.0     RcppAnnoy_0.0.18      plyr_1.8.6            R6_2.5.0              generics_0.1.0        DBI_1.1.1             withr_2.4.1          
+ [92] pillar_1.4.7          haven_2.3.1           mgcv_1.8-34           fitdistrplus_1.1-3    survival_3.2-10       abind_1.4-5           future.apply_1.7.0   
+ [99] modelr_0.1.8          crayon_1.4.1          KernSmooth_2.23-18    spatstat.geom_2.0-1   plotly_4.9.3          viridis_0.5.1         grid_4.0.5           
+[106] readxl_1.3.1          reprex_1.0.0          digest_0.6.27         xtable_1.8-4          httpuv_1.5.5          munsell_0.5.0         viridisLite_0.3.0
+
+
+
 ### NIAID repository release notes 
 A review of this code has been conducted, no critical errors exist, and to the best of the authors knowledge, there are no problematic file paths, no local system configuration details, and no passwords or keys included in this code.  
 Primary author(s): Matt Mulè  
-Organizational contact information: General: john.tsang AT nih.gov, code: mulemp AT nih.gov [permanent address mattmule AT gmail]  
-Date of release: Oct 7 2020  
+Organizational contact information: General: john.tsang AT nih.gov, code: mulemp AT nih.gov 
+Date of release: initial release: Oct 7 2020  
 Description: code to reproduce analysis of manuscript  
 Usage instructions: Provided in this markdown  
 
